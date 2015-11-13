@@ -1,0 +1,67 @@
+
+\section{Discussion}
+
+Given our experiences designing and evaluating the RAMP transaction
+protocols, we believe there are a number of interesting extensions
+that merit further examination.
+
+First, RAMP metadata effectively encodes a limited form of transaction
+\textit{intent}: readers and servers are only able to repair fractured
+reads because the metadata encodes the remainder of the work required
+to complete the transaction. We believe it would be interesting to
+generalize this concept to arbitrary program logic: for example, in a
+model such as lazy transactions~\cite{lazytxn} or eventual
+serializability~\cite{eventual-serial}, with transactions expressed as
+stored procedures, multiple, otherwise conflicting/coordinating
+clients could instead cooperate in order to complete one anothers'
+transactions in the event of a failure---without resorting to the use
+of a centralized master (e.g., for pre-scheduling or validating transaction
+execution). This programming model is largely incompatible with
+traditional interactive transaction execution but is nevertheless
+exciting to consider as an extension of these protocols.
+
+Second, and more concretely, we see several opportunities to extend
+RAMP to more specialized use cases. The RAMP protocol family is
+currently not well-suited to large scans and, as we have discussed,
+does not enforce transitive dependencies across transactions. We view
+restricting the concurrency of writers (but not readers) to be a
+useful step forward in this area, with predictable impact on writer
+performance. This strikes a middle ground between traditional MVCC and
+the current RAMP protocols.
+
+Finally, as we noted in Section~\ref{sec:ra-serializable}, efficient
+transaction processing often focuses on weakening semantics (e.g.,
+weak isolation) or changing the programming model (e.g., stored
+procedures as above). As our investigation of the RSW property
+demonstrates, there may exist compelling combinations of the two that
+yield more intuitive, high-performance, or scalable results than
+examining semantics or programming models in isolation. Addressing
+this question is especially salient for the many users of weak
+isolation models in practice today~\cite{hat-vldb}, as it can help
+understand when applications require stronger semantics and when, in
+fact, weak isolation is not simply fast but is also ``correct.''
+
+\section{Summary}
+\label{sec:conclusion}
+
+This chapter described how to achieve atomically visible multi-partition
+transactions without incurring the performance and availability
+penalties of traditional algorithms. We first identified a new
+isolation level---Read Atomic isolation---that provides atomic
+visibility and matches the requirements of a large class of real-world
+applications. We subsequently achieved RA isolation via scalable,
+contention-agnostic RAMP transactions. In contrast with techniques
+that use inconsistent but fast updates, RAMP transactions provide
+correct semantics for applications requiring secondary indexing,
+foreign key constraints, and materialized view maintenance while
+maintaining scalability and performance. By leveraging
+multi-versioning with a variable but small (and, in two of three
+algorithms, constant) amount of metadata per write, RAMP transactions
+allow clients to detect and assemble atomic sets of versions in one to
+two rounds of communication with servers (depending on the RAMP
+implementation). The choice of coordination-free and partition
+independent algorithms allowed us to achieve near-baseline performance
+across a variety of workload configurations and scale linearly to 100
+servers. While RAMP transactions are not appropriate for all
+applications, the many applications for which they are appropriate will
+benefit significantly.

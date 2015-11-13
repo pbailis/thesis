@@ -1,0 +1,382 @@
+
+\newcommand{\transform}{\textsc{Transform}\xspace}
+
+\section{RSIW Proof}
+
+\label{sec:rsiwproof}
+
+
+% total order valid because G1c is prohibited
+
+To begin, we first show that there exists a well-defined total
+ordering of write-only transactions in a history that is valid under
+RA isolation. This will be useful in ordering write transactions in
+our one-copy equivalent execution.
+
+\begin{lemma}[Well-defined Total Order on Writes]
+\label{lemma:to}
+  Given a history $H$ containing read-only and write-only transactions
+  that is valid under RA isolation, $DSG(H)$ does not contain any
+  directed cycles consisting entirely of write-dependency edges.
+\end{lemma}
+\begin{proof}
+  $H$ is valid under RA isolation and therefore does not exhibit
+  phenomenon \textit{G1c}. Thus, $H$ does not contain any directed
+  cycles consisting entirely of dependency edges. Therefore, $H$ does
+  not contain any directed cycles consisting entirely of
+  write-dependency edges.
+\end{proof}
+
+We will also need to place read-only transactions in our history. To
+do so, we show that, under RA isolation and the RSIW property (i.e.,
+the preconditions of Theorem~\ref{thm:rsw}), each read-only
+transaction will only read from one write-only transaction.
+
+\begin{lemma}[Single Read Dependency]
+\label{lemma:onedep}
+Given a history $H$ containing read-only and write-only transactions
+that obeys the RSIW property and is valid under RA isolation, each
+node in $DSG(H)$ contains at most one direct read-dependency edge.
+\end{lemma}
+\begin{proof}
+  Consider a history $H$ containing read-only and write-only
+  transactions that has RSIW and is valid under RA
+  isolation. Write-only transactions have no reads, so they have no
+  read-dependency edges in $DSG(H)$. However, suppose $DSG(H)$
+  contained a node corresponding to a read-only transaction containing
+  more than one direct read-dependency edge; call this read-only
+  transaction $T_r$. For two read-dependency edges to exist, $T_r$
+  must have read versions produced by at least two different
+  write-only transactions; pick any two and call them $T_i$ and $T_j$,
+  corresponding to read versions $x_a$ and $y_d$.
+
+  If $x$ and $y$ are the same item, then $a < d$ or $d < a$. In either
+  case, $T_r$ exhibits the fractured reads phenomenon and $H$ is not
+  valid under RA isolation, a contradiction.
+
+  Therefore, $x$ and $y$ must be distinct items. Because $H$ obeys the
+  RSIW property, $T_r$ must also obey the RSIW property. By the
+  definition of the RSIW property, $T_r$ must have only read items
+  written to by $T_i$ and items also written to by $T_j$; this implies
+  that $T_i$ and $T_j$ each wrote to items $x$ and $y$. We can label
+  $T_i$'s write to $y$ as $y_b$ and $T_j$'s write to $x$ as $x_c$. Per
+  Lemma~\ref{lemma:to}, $T_i$'s writes to $x$ and $y$ must either both
+  come before or both follow $T_j$'s corresponding writes to $x$ and
+  $y$ in the version order for each of $x$ and $y$; that is, either
+  both $a < b$ and $c < d$ or both $b < a$ and $d < c$.
+
+  If $a < b$ and $c < d$, then $T_r$ exhibits the fractured reads
+  phenomenon: $T_r$ read $x_a$ and $y_d$ but $T_j$, which wrote $y_d$
+  also wrote $x_b$, and $a < b$. If $b < a$ and $d < c$, then $T_r$
+  again exhibits the fractured reads phenomenon: $T_r$ read $x_a$ and
+  $y_d$ but $T_i$, which wrote $x_a$, also wrote $y_c$, and $d <
+  c$. In either case, $H$ is not valid under RA isolation, a
+  contradiction.
+
+  Therefore, each node in $DSG(H)$ must not contain more than one
+  read-dependency edge.
+\end{proof}
+
+We now use this ordering on reads and writes to construct a total
+ordering on transactions in a history:
+
+\begin{procedure}[Transform]
+  Given a history $H$ containing read-only and write-only transactions
+  that has RSIW and is valid under RA isolation,
+  construct a total ordering $O$ of the transactions in $H$ as
+  follows:
+\begin{enumerate}
+\item Perform a topological sorting in $O$ of committed write-only
+  transactions in $H$ ordered by the write-dependency edges in
+  $DSG(H)$. That is, for each pair of write-only transactions ($T_1$,
+  $T_2$) in $H$ that performed at least one write to the same item,
+  place the transaction that wrote the higher-versioned item later in
+  $O$. Lemma~\ref{lemma:to} ensures such a total ordering exists.
+\item For each committed read-only transaction $T_r$ in $H$, place
+  $T_r$ in $O$ after the write-only transaction $T_w$ whose writes
+  $T_r$ read (i.e., after the write-only transaction that $T_r$
+  directly read-depends on) but before the next write-only transaction
+  $T_{w'}$ in $O$ (or, if no such transaction exists, at the end of
+  $O$). By Lemma~\ref{lemma:onedep}, each committed read-only
+  transaction read-depends on only one write-only transaction, so this
+  ordering is similarly well defined.
+\end{enumerate}
+
+Return $O$.
+
+\end{procedure}
+
+As an example, consider the following history:
+\begin{eqnarray}
+\label{hist:transform-example}
+T_1 & w(x_1); w(y_1)\\
+T_2 & w(x_2); w(y_2)\nonumber\\
+T_3 & r(x_1); r(y_1)\nonumber\\
+T_4 & r(y_2);\nonumber
+\end{eqnarray}
+History~\ref{hist:transform-example} obeys the RSIW property and is
+also valid under RA isolation. Applying procedure~\transform to
+History~\ref{hist:transform-example}, in the first step, we first
+order our write-only transactions $T_1$ and $T_2$. Both $T_1$ and
+$T_2$ write to $x$ and $y$, but $T_2$'s writes have a later version
+number than $T_1$'s, so, according to Step 1 of~\transform, we have
+$O=T_1; T_2$. Now, in Step 2 of~\transform, we consider the read-only
+transactions $T_3$ and $T_4$. We place $T_3$ after the transaction
+that it read from ($T_1$) and before the next write transaction in the
+sequence ($T_2$), yielding $O=T_1; T_3; T_2$. We place $T_4$ after the
+transaction that it read from ($T_2$) and, because there is no later
+write-only transaction following $T_2$ in $O$, place $T_4$ at the end
+of $O$, yielding $O=T_1; T_3; T_2; T_4$. In this case, we observe
+that, as Theorem~\ref{thm:rsw} suggests, it is possible to~\transform
+an RSIW and RA history into a one-copy serial equivalent and that $O$ is in fact
+a one-copy serializable execution.
+
+Now we can prove Theorem~\ref{thm:rsw}. We demonstrate that executing
+the transactions of $H$ in the order resulting from
+applying~\transform to $H$ on a single-copy database yields an
+equivalent history (i.e., read values and final database state) as
+$H$. Because $O$ is a total order, $H$ must be one-copy serializable.
+\begin{proof}[Theorem~\ref{thm:rsw}]
+  Consider history $H$ containing read-only and write-only
+  transactions that has RSIW and is valid under RA
+  isolation. We begin by applying~\transform to $H$ to produce an
+  ordering $O$. 
+
+  We create a new history $H_o$ by considering an empty one-copy
+  database and examining each transaction $T_h$ in $O$ in serial order
+  as follows: if $T_h$ is a write-only transaction, execute a new
+  transaction $T_{ow}$ that writes each version produced by $T_h$ to
+  the one-copy database and commits. If $T_h$ is a read-only
+  transaction, execute a new transaction $T_{or}$ that reads from the
+  sam items as $T_h$ and commits. $H_o$ is the result of a serial
+  execution of transactions over a single logical copy of the
+  database, $H_o$ is one-copy serializable.
+
+  We now show that $H$ and $H_o$ are equivalent. First, all committed
+  transactions and operations in $H$ also appear in $H_o$
+  because~\transform operates on all transactions in $H$ and all
+  transactions and their operations (with single-copy operations
+  substituted for multi-version operations) appear in the total order
+  $O$ used to produce $H_o$. Second, $DSG(H)$ and $DSG(H_o)$ have the
+  same direct read dependencies. This is a straightforward consequence
+  of Step 2 of~\transform: in $O$, each read-only transaction $T_r$
+  appears immediately following the write-only transaction $T_w$ upon
+  which $T_r$ read-depends. When the corresponding read transaction is
+  executed against the single-copy database in $H_o$, the serially
+  preceding write-only transaction will produce the same values that
+  the read transaction read in $H$. Therefore, $H$ and $H_o$ are equivalent.
+
+  Because $H_o$ is one-copy serializable and $H_o$ is equivalent to $H$, $H$
+  must also be one-copy serializable.
+\end{proof}
+
+We have opted for the above proof technique because we believe
+the~\transform procedure provides clarity into \textit{how} executions
+satisfying both RA isolation and the RSIW property relate to their
+serializable counterparts. An alternative and elegant proof approach
+leverages the work on multi-version serializability
+theory~\cite{bernstein-book}, which we sketch here. Given a
+history $H$ that exhibits RA isolation and has RSIW, we show
+that $MVSG(H)$ is acyclic. By an argument resembling
+Lemma~\ref{lemma:onedep}, the in-degree for read-only transactions in
+$SG(H)$ (i.e., Adya's direct read dependencies) is one. By an argument
+resembling Lemma~\ref{lemma:to}, the edges between write-only
+transactions in $MVSG(H)$ produced by the first condition of the
+$MVSG$ construction ($x_i \ll x_j$ in the definition of the
+$MVSG$~\cite[p. 152]{bernstein-book}; i.e., Adya's write dependencies)
+are acyclic. Therefore, any cycles in the $MVSG$ must include at least
+one of the second kind of edges in the $MVSG(H)$ ($x_j \ll x_i$; i.e.,
+Adya's direct anti-dependencies). But, for such a cycle to exist, a
+read-only transaction $T_r$ must anti-depend on a write-only
+transaction $T_{wi}$ that in turn write-depends on another write-only
+transaction $T_{wj}$ upon which $T_r$ read-depends. Under the RSIW
+property, $T_{wi}$ and $T_{wj}$ will have written to at least one of
+the same items, and the presence of a write-dependency cycle will
+indicate a fractured reads anomaly in $T_r$.
+
+\section{RAMP Correctness and Independence}
+
+\label{sec:rampproofs}
+
+
+\minihead{RAMP-F Correctness} To prove \rapl provides RA isolation, we
+show that the two-round read protocol returns a transactionally atomic
+set of versions. To do so, we formalize criteria for atomic (read)
+sets of versions in the form of \textit{companion sets}. We will call
+the set of versions produced by a transaction \textit{sibling
+  versions} and say that $x$ is a sibling item to a write $y_j$ if
+there exists a version $x_k$ that was written in the same transaction
+as $y_j$.
+
+Given two versions $x_i$ and $y_j$, we say that $x_i$ is a
+\textit{companion version} to $y_j$ if $x_i$ is a transactional
+sibling of $y_j$ or $x$ is a sibling item of $y_j$ and $i > j$. We say
+that a set of versions $V$ is a \textit{companion set} if, for every
+pair $(x_i, y_j)$ of versions in $V$ where $x$ is a sibling item of
+$y_j$, $x_i$ is a companion to $y_j$. In
+Figure~\ref{fig:rapl-execution}, the versions returned by $T_2$'s
+first round of reads ($\{x_1, y_\bot\}$) do not comprise a companion
+set because $y_\bot$ has a lower timestamp than $x_1$'s sibling
+version of $y$ (that is, $x_1$ has sibling version $y_1$ and but $\bot
+< 1$ so $y_\bot$ has too low of a timestamp). Subsets of companion
+sets are also companion sets and companion sets also have a useful
+property for RA isolation:
+\begin{claim}[Companion sets are atomic]
+\label{claim:companion-atomic}
+In the absence of G1c phenomena, companion sets do not contain fractured reads.
+\end{claim}
+
+Claim~\ref{claim:companion-atomic} follows from the definitions of
+companion sets and fractured reads.
+
+\begin{proof}
+If $V$ is a companion set, then
+every version $x_i \in V$ is a companion to every other version
+$y_j \in V$ where $v_j$ contains $x$ in its sibling items. If $V$
+contained fractured reads, $V$ would contain two versions $x_i,y_j$
+such that the transaction that wrote $y_j$ also wrote a version $x_k$,
+$i<k$. However, in this case, $x_i$ would not be a companion to
+$y_j$, a contradiction. Therefore, $V$ cannot contain fractured reads.
+\end{proof}
+
+To provide RA, \rapl clients assemble a companion set for the
+requested items (in $v_{latest}$), which we prove below:
+
+\begin{claim}\rapl provides Read Atomic isolation.\end{claim}
+
+\begin{proof}
+\label{proof:rapl-ra}
+Each write in \rapl contains information regarding its siblings, which
+can be identified by item and timestamp. Given a set of \rapl
+versions, recording the highest timestamped version of each item (as
+recorded either in the version itself or via sibling metadata) yields
+a companion set of item-timestamp pairs: if a client reads two
+versions $x_i$ and $y_j$ such that $x$ is in $y_j$'s sibling items but
+$i < j$, then $v_{latest}[x]$ will contain $j$ and not
+$i$. Accordingly, given the versions returned by the first round of
+\rapl reads, clients calculate a companion set containing versions of
+the requested items. Given this companion set, clients check the
+first-round versions against this set by timestamp and issue a second
+round of reads to fetch any companions that were not returned in the
+first round. The resulting set of versions will be a subset of the
+computed companion set and will therefore also be a companion
+set. This ensures that the returned results do not contain fractured
+reads. \rapl first-round reads access $lastCommit$, so each
+transaction corresponding to a first-round version is committed, and,
+therefore, any siblings requested in the (optional) second round of
+reads are also committed. Accordingly, \rapl never reads aborted or
+non-final (intermediate) writes. Moreover, \rapl timestamps are
+assigned on a per-transaction basis, preventing write-dependency
+cycles and therefore \textit{G1c}. This establishes that \rapl
+provides RA\@.
+\end{proof}
+
+\minihead{RAMP-F Scalability and Independence} \rapl also provides the
+independence guarantees from Section~\ref{sec:sysmodel}. The
+following invariant over $lastCommit$ is core to \rapl \textsc{get}
+request completion:
+\begin{invariant}[Companions present]
+\label{inv:suitable-present}
+
+If a version $x_i$ is referenced by $lastCommit$ (that is,
+$lastCommit[x] = i$), then each of $x_i$'s sibling versions are
+present in $versions$ on their respective partitions.
+
+\end{invariant}
+Invariant~\ref{inv:suitable-present} is maintained by \rapl's
+two-phase write protocol. $lastCommit$ is only updated once a
+transaction's writes have been placed into $versions$ by a first round
+of \textsc{prepare} messages. Siblings will be present in $versions$
+(but not necessarily $lastCommit$).
+
+\begin{claim}\rapl is coordination-free.\end{claim}
+
+Recall from Section~\ref{sec:sysmodel} that coordination-free execution ensures that one client's
+transactions cannot cause another client's to block and that, if a
+client can contact the partition responsible for each item in its
+transaction, the transaction will eventually commit (or abort of its
+own volition).
+
+\begin{proof}
+Clients in \rapl do not communicate or coordinate with one another and
+only contact servers. Accordingly, to show that \rapl provides
+coordination-free execution, it suffices to show that server-side
+operations always terminate. \textsc{prepare} and \textsc{commit}
+methods only access data stored on the local partition and do not
+block due to external coordination or other method invocations;
+therefore, they complete. \textsc{get} requests issued in the first
+round of reads have $ts_{req} = \bot$ and therefore will return the
+version corresponding to $lastCommit[k]$, which was placed into
+$versions$ in a previously completed \textsc{prepare}
+round. \textsc{get} requests issued in the second round of client
+reads have $ts_{req}$ set to the client's calculated
+$v_{latest}[k]$. $v_{latest}[k]$ is a sibling of a version returned
+from $lastCommit$ in the first round, so, due to
+Invariant~\ref{inv:suitable-present}, the requested version will be
+present in $versions$. Therefore, \textsc{get} invocations are
+guaranteed access to their requested version and can return without
+waiting. The success of \rapl operations does not depend on the success
+or failure of other clients' \rapl operations.
+\end{proof}
+
+\begin{claim}\rapl provides partition independence.\end{claim}
+\begin{proof}
+\rapl transactions do not access partitions that are unrelated to each transaction's
+specified data items and servers do not contact other servers in
+order to provide a safe response for operations.
+\end{proof}
+
+\minihead{RAMP-S Correctness} \raps writes and first-round reads proceed
+identically to \rapl writes, but the metadata written and returned is
+different. Therefore, the proof is similar to \rapl, with a slight
+modification for the second round of reads.
+
+\begin{claim}\raps provides Read Atomic isolation.\end{claim}
+\begin{proof}
+  To show that \raps provides RA, it suffices to show that \raps
+  second-round reads ($resp$) are a companion set. Given two versions
+  $x_i, y_j \in resp$ such that $x \neq y$, if $x$ is a sibling item
+  of $y_j$, then $x_i$ must be a companion to $y_j$. If $x_i$ were not
+  a companion to $y_j$, then it would imply that $x$ is not a sibling
+  item of $y_j$ (so we are done) or that $j > i$. If $j > i$, then,
+  due to Invariant~\ref{inv:suitable-present} (which also holds for
+  \raps writes due to identical write protocols), $y_j$'s sibling is
+  present in $versions$ on the partition for $x$ and would have been
+  returned by the server (line~\ref{raps-get-server-withts-end}), a
+  contradiction. Each second-round \textsc{get} request returns only
+  one version, so the final set of reads does not exhibit fractured reads.
+\end{proof}
+
+\minihead{RAMP-S Scalability and Independence} \raps ensures
+coordination-free execution and partition independence. The proofs
+closely resemble those of \rapl: Invariant~\ref{inv:suitable-present}
+ensures that incomplete commits do not stall readers, and all
+server-side operations are guaranteed to complete.
+
+\minihead{RAMP-H Correctness} The probabilistic behavior of the \rapb Bloom
+filter admits false positives. However, given unique transaction
+timestamps (Section~\ref{sec:additional}), requesting false siblings
+by timestamp and item does not affect correctness:
+
+\begin{claim}\rapb provides Read Atomic isolation.\end{claim}
+\begin{proof}
+To show that \rapb provides Read Atomic isolation, it suffices to show
+that any versions requested by \rapb second-round reads that would not
+have been requested by \rapl second-round reads (call this set
+$v_{false}$) do not compromise the validity of \rapb's returned
+companion set. Any versions in $v_{false}$ do not exist: timestamps
+are unique, so, for each version $x_i$, there are no versions $x_j$ of
+non-sibling items with the same timestamp as $x_i$ (i.e., where
+$i=j$). Therefore, requesting versions in $v_{false}$ do not change
+the set of results collected in the second round.
+\end{proof}
+
+
+\minihead{RAMP-H Scalability and Independence} \rapb provides
+coordination-free execution and partition independence. We omit full
+proofs, which closely resemble those of \rapl. The only significant
+difference from \rapl is that second-round \textsc{get} requests may
+return $\bot$, but, as we showed above, these empty responses
+correspond to false positives in the Bloom filter and therefore do not
+affect correctness.
+

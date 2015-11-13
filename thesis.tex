@@ -1,0 +1,329 @@
+% This sample file is dedicated to the public domain.
+\documentclass[12pt]{myucthesis}
+
+%\nofiles
+% The above command prevents latex from writing its auxiliary
+% files. This is useful if you want to manually tweak them before you
+% generate your final PDF.
+
+
+% Page layout. The fancyhdr package may complain about the need for a
+% larger headheight, depending on how long chapter titles are; if left
+% unspecified in the geometry setup, it defaults to 12pt. The
+% "showframe" option causes the geometry package (version >= 5.0) to
+% show a frame around the margins on every page, which is great for
+% checking that you don't overflow anywhere.
+
+%\usepackage[letterpaper,includehead,margin=1in,headheight=15pt,showframe]{geometry}
+\usepackage[letterpaper,includehead,margin=1in,headheight=15pt]{geometry}
+\usepackage{fancyhdr}
+\pagestyle{fancyplain}
+
+\lhead[\fancyplain{\thepage}{\thepage}]{\fancyplain{}{\scshape\rightmark}}
+\rhead[\fancyplain{}{\scshape\leftmark}]{\fancyplain{\thepage}{\thepage}}
+\chead{}
+\cfoot{}
+\lfoot{}
+\rfoot{}
+
+
+% Bibliography stuff:
+
+\usepackage{enumitem,cite,xspace,multirow}
+
+\newcommand{\figscale}{.8}
+
+\newcommand{\newblock}{\par} % need this for some natbib internal bug
+\bibliographystyle{plain}
+\def\bibpreamble{\addcontentsline{toc}{chapter}{Bibliography}} % get a good TOC entry
+
+
+\DeclareMathAlphabet{\mathcal}{OMS}{cmsy}{m}{n}
+
+\usepackage{colortbl,verbatim,mathtools}
+\newcommand{\suchthat}{\textrm{ s.t. }}
+\newcommand{\mathand}{\textrm{ and }}
+
+\usepackage{xspace,listings} 
+\newcommand{\iconfluence}{\textrm{invariant confluence}\xspace}
+\newcommand{\Iconfluence}{\textrm{Invariant confluence}\xspace}
+\newcommand{\IConfluence}{\textrm{Invariant Confluence}\xspace}
+\newcommand{\IConfluent}{\textrm{Invariant Confluent}\xspace}
+\newcommand{\iconfluent}{\textrm{invariant confluent}\xspace}
+\newcommand{\Iconfluent}{\textrm{Invariant confluent}\xspace}
+
+\newcommand{\cfree}{coordination-free\xspace}
+\newcommand{\cfreedom}{coordination-freedom\xspace}
+
+\newcommand{\exampleref}[1]{{\vspace{.25em}\noindent\textbf{#1.} }}
+\newcommand{\example}[1]{{\vspace{.25em}\noindent\textbf{#1.} }}
+\newcommand{\miniheadnostop}[1]{{\vspace{.4em}\noindent\textit{#1} }}
+\newcommand{\minihead}[1]{{\vspace{.45em}\noindent\textbf{#1.} }}
+\newcommand{\miniheadit}[1]{{\vspace{.45em}\noindent\textit{#1.} }}
+\newcommand{\miniheadnopd}[2]{{\vspace{.4em}\noindent\textbf{#1}\hspace{.5em}{#2}\vspace{.4em} }}
+\newcommand{\minidef}[1]{{\vspace{.25em}\noindent\textit{#1} }}
+
+
+\newcommand{\centerhfill}[1][\quad]{\hspace{\stretch{0.5}}#1\hspace{\stretch{0.5}}}
+
+%center crap
+\makeatletter
+\g@addto@macro\@floatboxreset\centering
+\makeatother
+
+\newcommand{\tf}[1]{\texttt{#1}\xspace}
+
+\newcommand{\rapl}{\tf{RAMP-F}}
+\newcommand{\raps}{\tf{RAMP-S}}
+\newcommand{\rapb}{\tf{RAMP-H}}
+
+\newcommand{\lwlr}{\tf{LWLR}}
+\newcommand{\lwsr}{\tf{LWSR}}
+\newcommand{\lwnr}{\tf{LWNR}}
+
+\newcommand{\nwnr}{\tf{NWNR}}
+\newcommand{\mstr}{\tf{E-PCI}}
+
+\newcommand{\defaultfigwidth}{.7\columnwidth}
+
+\newcommand{\rappendix}[1]{Appendix~\ref{#1}}
+\newcommand{\rsection}[1]{Section #1}
+
+% Other setup:
+
+\usepackage[T1]{fontenc} % see http://tinyurl.com/67zdxwf
+\usepackage[colorlinks,urlcolor=blue,citecolor=blue,linkcolor=blue,pdfusetitle]{hyperref}
+\usepackage{pdflscape} % allows landscape-oriented figures with PDF page rotation
+\usepackage{aasmacros,amsmath,amssymb,graphicx,amsthm}
+\usepackage{mydeluxetable} % deluxetable customized to play well with ucthesis
+
+\usepackage{eulervm,tikz,float,subfig}
+
+\def\subfigure{\subfloat}
+\def\subtable{\subfloat}
+
+\usepackage{sabon,placeins}
+
+\usetikzlibrary{positioning, snakes, shapes}
+\newcommand*{\DashedArrow}[1][]{\mathbin{\tikz [baseline=-.25ex,-latex, dashed,#1] \draw [#1] (0pt,0.5ex) -- (2em,0.5ex);}}%
+
+\usepackage[boxed]{algorithm}% http://ctan.org/pkg/algorithms 
+\usepackage[noend]{algpseudocode}% http://ctan.org/pkg/algorithmicx
+\algblock{ParFor}{EndParFor}
+\algnewcommand\algorithmicparfor{\textbf{parfor}}
+\algnewcommand\algorithmicpardo{\textbf{do}}
+\algnewcommand\algorithmicendparfor{\textbf{end\ parfor}}
+\algrenewtext{ParFor}[1]{\algorithmicparfor\ #1\ \algorithmicpardo}
+\algrenewtext{EndParFor}{\vspace{-1em}}
+
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+
+\newtheorem{invariant}{Invariant}
+\newtheorem{procedure}{Procedure}
+
+
+\newtheorem{remark}{Remark}
+\newtheorem{claim}{Claim}
+
+
+\usepackage[T1]{fontenc}
+\usepackage{zi4}
+\renewcommand*{\ttdefault}{zi4}
+
+\usepackage{longtable,lscape}
+
+
+\usepackage{setspace}
+
+\usepackage{caption}
+\captionsetup[table]{skip=1em}
+
+\begin{document}
+\ssp % single spacing
+\hypersetup{pageanchor=false}
+\include{setup}
+\maketitle
+\copyrightpage
+
+
+\begin{abstract}
+  The rise of Internet-scale geo-replicated services has led to
+  upheaval in the design of modern data management
+  systems. Given the availability, latency, and throughput
+  penalties associated with classic mechanisms such as serializable
+  transactions, a broad class of systems (e.g., ``NoSQL'') has sought
+  weaker alternatives that reduce the use of expensive coordination
+  during system operation, often at the cost of application
+  integrity. When can we safely forego the cost of this expensive
+  coordination, and when must we pay the price?
+
+  In this thesis, we investigate the potential for coordination
+  avoidance---the use of as little coordination as possible while
+  ensuring application integrity---in several modern data-intensive
+  domains. We demonstrate how to leverage the semantic requirements of
+  applications in data serving, transaction processing, and web
+  services to enable more efficient distributed algorithms and system
+  designs. The resulting prototype systems demonstrate regular
+  order-of-magnitude speedups compared to their traditional,
+  coordinated counterparts on a variety of tasks, including
+  referential integrity and index maintenance, transaction execution
+  under common isolation models, and database constraint
+  enforcement. A range of open source applications and systems exhibit
+  similar results.
+\end{abstract}
+
+\hypersetup{pageanchor=true}
+\begin{frontmatter}
+
+\begin{dedication}
+\null\vfil
+{\large
+\begin{center}
+To my family
+\end{center}}
+\null\vfil
+\end{dedication}
+
+\tableofcontents
+\listoffigures % optional
+\listoftables % optional
+
+% If using code.sty, can also add:
+%% \listofcodes
+%% \addcontentsline{toc}{chapter}{List of Code Examples}
+
+
+
+
+\begin{acknowledgements}
+\makeatletter
+\let\@currsize\normalsize
+\makeatother
+\setstretch{1.1}
+\setlength{\parskip}{.25\baselineskip}%
+
+I would like to acknowledge my advisors: Ali Ghodsi, Joe
+Hellerstein, and Ion Stoica. Ali has been a thoroughly conscientious
+and tenacious collaborator and mentor. Ali pushed our work to greater
+levels of technical depth, introducing me to the tradition of
+distributed computing and encouraging both precision and pursuit of
+principle. His unceasing support and thoughtful advice bolstered both
+the quality of this research as well as my spirit and my faith in the
+research process. Joe encouraged me to find my own balance between
+what Melville calls ``audacity and reverence.'' I am especially
+grateful for Joe's support and patience in allowing me freedom during
+my graduate experience as well as Joe's careful commentary on this
+document. Ion has proven an example of industriousness and
+perseverance. His persistent encouragement to ``find the nugget''
+deepened my appreciation for simplicity in design as well as clarity
+of thought and writing.
+
+I am also grateful to several individuals who made major contributions
+to the research in this thesis. Alan Fekete, who visited us twice on sabbatical,
+was essential in our focus on database safety properties, from
+isolation guarantees to constraints. Alan is an exemplar of modesty
+despite technical brilliance. I especially admire his desire to
+keep learning well into his career as well as his uncanny ability to
+comb through formalism with diligence and grace. Mike Franklin was a
+dear collaborator at the beginning and end of this work, and his
+leadership has been an inspiring example for me. Tapan Parikh, my
+outside dissertation committee member, provided a valuable,
+human-centric perspective on this work.
+
+I have been fortunate to overlap with a multitude of wonderful
+researchers during my time at Berkeley. In particular, Neil Conway and
+Peter Alvaro were both great friends and colleagues, and our shared
+enthusiasm for distributed databases, cooking, and nature was a great
+source of inspiration for me. I especially admire Peter's quiet sense
+of wonder and reverence for the literature as well as Neil's
+admiration for and cultivation of engineering and design as high
+craft. Shivaram Venkataraman was an unflappably positive collaborator
+in our earliest days of graduate studies and became a terrific labmate
+and travel companion, from Santa Cruz to Turkey and Chania. Patrick
+Wendell was an invaluable sounding board regarding the interfaces
+between academia and industry as well as an unforgettable roommate. I
+could always count on a fun conversation (or dinner outing) with Kay
+Ousterhout, Aurojit Panda, Colin Scott, and the NetSys lab. Justine
+Sherry was instrumental in cultivating a positive culture within our
+cohort and was a superbly capable co-founder of @TinyToCS. Evan
+Sparks, Dan Haas, Daniel Crankshaw, Sanjay Krishnan, Jiannan Wang, and
+the many other members of the Berkeley Database Seminar were always
+game for a good conversation. The many members of the Berkeley
+Database group, Cloud seminar, CCN group, AMPLab, and BOOM project
+made for wonderful, joyful company.
+
+Many others provided helpful feedback during the course of this work,
+including: Shel Finkelstein and Pat Helland, my guides to real-world
+inconsistency (and ``outconsistency'') in enterprise databases; Daniel
+Abadi, who never fails to elicit a fascinating conversation; Phil
+Bernstein, whose feedback is consistently top-notch and provides
+astute historical context; Doug Terry, whose pioneering work on weak
+replication and whose kind encouragement were both significant
+inspirations to me; Mike Stonebraker, whose unflagging energy is
+contagious, and who provides frequent and welcome reminders
+to consider the market for and impact of my research; Eric
+Brewer, Sam Madden, and Scott Shenker, who have provided gracious support and
+thoughtful guidance; and Divy Agrawal, Amr El Abaddi, and Sharad
+Mehotra, for rousing conversations about semantics-based concurrency
+control.
+
+I am also grateful to the many people building, operating, and
+managing distributed systems and databases in the field who provided
+feedback on and inspiration for this work, including Michael
+R. Bernstein, Rick Branson, Mark Callaghan, Adrian Colyer, Sean
+Cribbs, Jonathan Ellis, Alex Feinberg, Andy Gross, Coda Hale, Colin
+Jones, Evan Jones, Kyle Kingsbury, Adam Marcus, Caitie McCaffrey,
+Christopher Meiklejohn, Mike Miller, Jeremiah Peschka, Mark Phillips,
+Henry Robinson, Mehul Shah, Xavier Shay, Justin Sheehy, Ines Sombra,
+Kelly Sommers, and Sriram Srinivasan. It is an exciting and perhaps
+unparalleled time in the history of data management, and this dialogue
+with practice has greatly enriched this work as well as my experience
+and enthusiasm during my studies.
+
+While my graduate studies have been brief, I feel that my training in
+research began long before I arrived at Berkeley. I am especially
+indebted to Vijay Janapa Reddi, Margo Seltzer, David Brooks, Radhika
+Nagpal, Matt Welsh, Justin Werfel, and Christopher Goodrich for taking
+the chance to work with me, teaching me the process and joy of
+research at an early stage of my career, and encouraging the
+development of intellectual audacity and perseverance. Over time, I
+have come to realize how rare such experiences are and how privileged
+I am to have had such a group of individuals in my life to enable
+them.
+
+This work was supported in part by a National Science Foundation
+Graduate Fellowship under Grant DGE 1106400 and by a Berkeley
+Fellowship for Graduate Study from the UC Berkeley Graduate Division.
+
+Finally, I am deeply grateful for support and encouragement from
+my family and friends.
+
+\end{acknowledgements}
+
+\end{frontmatter}
+
+\makeatletter
+\let\@currsize\normalsize
+\makeatother
+
+\setstretch{1.1}
+\setlength{\parskip}{.25\baselineskip}%
+
+
+\include{intro/intro}
+\include{background/background}
+\include{iconfluence/iconfluence}
+\include{isolation/isolation}
+\include{ramp/ramp}
+\include{constraints/constraints}
+%\include{discussion/discussion}
+\include{relatedwork/relatedwork}
+%\include{applying/applying}
+%\include{implementing/implementing}
+\include{conclusion/conclusion}
+
+
+\bibliography{thesis}{}
+\end{document}

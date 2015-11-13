@@ -1,0 +1,439 @@
+
+\chapter{Related Work}
+\label{c.relatedwork}
+
+In this chapter, we provide a discussion of related work. We begin
+with a discussion of work related to the general themes in this
+thesis, then examine specific areas in depth.
+
+
+Database system designers have long sought to manage the trade-off
+between consistency and coordination. As we have discussed,
+serializability and its many implementations (including lock-based,
+optimistic, and pre-scheduling
+mechanisms)~\cite{silo,bernstein-book,tamer-book,hstore,gray-virtues,calvin,eswaran-consistency,sdd1}
+are sufficient for maintaining application correctness. However,
+serializability is not always necessary: serializable databases do not allow certain
+executions that are correct according to application semantics.  This
+has led to a large class of application-level---or
+semantic---concurrency control models and mechanisms that admit
+greater concurrency. There are several surveys on this topic, such
+as~\cite{tamer-book,ic-survey}, and, in our solutions, we integrate
+many concepts from this literature.
+
+\minihead{Commutativity} One of the most popular alternatives to
+serializability is to exploit \textit{commutativity}: if transaction
+return values (e.g., of reads) and/or final database states are
+equivalent despite reordering, they can be executed
+simultaneously~\cite{weihl-thesis,kohler-commutativity,redblue}. Commutativity
+is often sufficient for correctness but is not necessary. For example,
+if an analyst at a wholesaler creates a report on daily cash flows,
+any concurrent sale transactions will \textit{not} commute with the
+report (the results will change depending on whether the sale
+completes before or after the analyst runs her queries). However, the
+report creation is \iconfluent with respect to, say, the invariant
+that every sale in the report references a customer from the customers
+table. \cite{kohler-commutativity,lamport-audit} provide additional
+examples of safe non-commutativity.
+
+\minihead{The CALM Theorem, Monotonicity, and Confluence}
+Hellerstein's CALM Theorem~\cite{ameloot-calm} shows that program
+outcomes are confluent, or deterministic, under coordination-free
+execution if and only if the program logic is monotone. CALM is a
+declarative result: it captures the class of computations that can be
+implemented deterministically without coordination. CALM can also be
+used as a program analysis technique: if a particular program
+implementation uses only monotonic operations (where ``program'' could
+include a service and its client code), then that program will be
+deterministic when executed without coordination; otherwise,
+coordination should be injected to ``protect'' non-monotonic
+operations to ensure determinism.  CALM program analysis is natural to
+apply in logic languages like Bloom~\cite{calm} where monotonicity can
+be assessed from syntax.  It can also be applied to dataflow systems
+like Storm~\cite{storm} with the help of program
+annotations~\cite{blazes}.
+
+CALM's notion of confluence differs from invariant confluence in
+several ways. First, CALM assesses the confluence, or determinism, of
+program logic; invariant confluence assesses whether a set of safety
+properties holds during and following the execution of a set of
+transactions over replicated or multi-versioned data given a
+particular merge function. \Iconfluence admits non-deterministic
+outcomes as long as the outcomes satisfy the provided invariants.
+Second, CALM does not consider transactions, while invariant
+confluence analyzes transactions that individually ensure
+invariant-preserving updates.  Third, invariant confluence considers
+replicated or multi-versioned state (via the use of the replica
+abstraction). As discussed in Section~\ref{sec:model}, invariant
+confluent does not distinguish between partially-replicated and
+fully-replicated systems; under invariant confluence, a transaction is
+presented with an entire logical snapshot (replica) of the database
+upon which it can operate. A partially replicated implementation of a
+set of \iconfluent operations may need to communicate with partitions
+responsible for items that were not explicitly mentioned in the
+transaction operations but that are related to invariants over data
+modified by the transaction. Again, and by
+Theorem~\ref{theorem:necessary}, for \iconfluent semantics, this
+checking can be performed in parallel by concurrently committing
+transactions over their respective logical replicas. However, in
+contrast, CALM analysis is agnostic to replication, versioning, and
+partitioning, which, if desired, are implemented as part of program
+logic to be analyzed.
+
+CALM and invariant confluence use different mathematical
+foundations. CALM is based on monotonicity analysis from logic
+programs. \Iconfluence generalizes classic partitioning arguments from
+distributed systems to the domain of user-supplied invariants,
+transactions, and merge functions. For associative, commutative, and
+idempotent merge functions, an \iconfluent execution effectively
+defines a join semi-lattice: invariants begin true in $D_0$ and remain
+true as the execution progresses. Monotone programs also compute over
+a join semi-lattice of relations and union. However, the analyses and
+proof techniques of the two concepts are quite different.
+
+Further understanding the relationship between invariant confluence
+and CALM is an interesting area for exploration. For example, it is
+natural to ask if there is an extension of CALM analysis that can,
+like \iconfluence, incorporate invariants over possibly
+non-deterministic outputs. A possible direction here is to view
+invariants as boolean-valued formulas whose results ``start true'' and
+monotonically remain true. In this direction, an invariant is a
+morphism mapping from potentially monotone relational inputs to a
+monotone boolean output lattice~\cite{blooml}.  Additionally, as CALM
+is non-transactional and our formulation of invariant confluence is
+inherently transactional, it is interesting to consider what
+``transactional CALM'' would mean. In our formulation of \iconfluence,
+transactions that violate invariants when committing to local replica
+state are aborted; it is unclear how to model abort logic in CALM
+analysis.
+
+\minihead{Convergent Data Types} On a related subject, Commutative
+Replicated Data Type (CRDT) objects~\cite{crdt} similarly ensure
+convergent outcomes that reflect all updates made to each object.
+This convergence is a useful \textit{liveness}
+property~\cite{schneider-concurrent} (e.g., a converged CRDT OR-Set
+reflects all concurrent additions and removals) but does not prevent
+users from observing inconsistent data~\cite{redblue-new}, or
+\textit{safety} (e.g., the CRDT OR-Set does not---by itself---enforce
+invariants, such as ensuring that no employee belongs to two
+departments), and are therefore not sufficient to guarantee
+correctness for all applications. Here, we use CRDTs to implement many
+of our merge functions, and we add safety to the intermediate states
+and final outcomes. Thus, each replica state is, in effect, a CRDT,
+and our goal is to determine which operations need coordination to
+ensure variants of safety properties are upheld.
+
+\minihead{Use of Invariants} A large number of database
+designs---including, in restricted forms, many commercial databases
+today---use various forms of application-supplied invariants,
+constraints, or other semantic descriptions of valid database states
+as a specification for application correctness
+(e.g.,~\cite{korth-serializability,kemme-si-ic,garciamolina-semantics,ic-survey,ic-survey-two,decomp-semantics,redblue,homeostasis,davidson-survey,local-verification,redblue-new,rel-serial,pwsr-pods,tamer-tods}). We
+draw inspiration and, in particular, our use of invariants from this
+prior work. However, we are not aware of related work that discusses
+when coordination is strictly \textit{required} to enforce a given set
+of invariants. That is, our formulation of coordination-free execution
+of transactions on separate replicas, which is key to capturing
+scalability, low latency, and availability properties, is not found in
+this related work; we, in effect, operate at the junction between this
+prior work on semantics-based concurrency control from databases and
+classic analyses from distributed
+computing~\cite{gilbert-cap}. 
+
+To illustrate why replication is so important to our model, consider
+the work on relative serializability~\cite{rel-serial}. In this work,
+the authors generalize prior efforts,
+including~\cite{korth-serializability,garciamolina-semantics,atomictransactions,tamer-tods},
+and re-define conflicting actions within otherwise conflict
+serializable transaction execution in order to allow greater
+concurrency. That is, instead of defining conflict as ``any two
+operations on the same item from different transactions, at least one
+of which is a write'' as in conflict serializability, relative
+serializability allows users to define an abstract atomicity relation
+to determine conflicts---for example, two increment operations need
+not necessarily conflict, even if they both update the same
+counter. Thus, the goal of this work is to preserve equivalence a
+serial schedule, defined according to the abstract atomicity relation,
+and there is still a total order on operations. As a result, in
+relative serializability and related models~\cite{pwsr-pods}, the
+``union'' (or combination) of two databases is undefined if two items
+have different versions (e.g., $\{a_1\} \cup \{a_2\}$), because such
+databases would correspond to two separate total orders. In contrast,
+in our \iconfluence analysis, we explicitly consider a partial order
+on operations, with divergent states reconciled with a merge operator;
+instead of reasoning about conflicts, we allow arbitrary divergent
+states that $i)$ are guaranteed to satisfy a user-specified invariant
+over the data and $ii)$ are reconciled using a user-specified merge
+function.
+
+Because data is replicated in our model, it is natural to reason about
+a ``merge'' function. Insofar as servers must explicitly integrate
+updates from others in order to guarantee convergence (in contrast
+with conventional shared-memory systems, where hardware automatically
+chooses an ordering and conflict resolution policies for updates),
+merge allows users to specify their own conflict resolution. As we
+have discussed, the merge operator is itself drawn from the literature
+on optimistic replication~\cite{optimistic} and is relatively popular
+today in stores including Dynamo~\cite{dynamo} and its descendants as
+well as systems like Git. Thus, while the goals of work on
+semantics-based concurrency control (including relative
+serializability) are similar to ours (especially in terms of
+increasing concurrency), our use of merge leads to a substantially
+different system and execution model. In effect, we can think of
+\iconfluence as relative serializability with a special,
+system-induced compensating action (``merge'') to deal with divergent
+paths in the semantic serializability serialization graph (RSG), if
+the graph were extended to account for replication.
+
+Thus, our \iconfluence analysis here is inspired by prior work on
+semantics-based concurrency control and adapts the practice of using
+application (and database) criteria as the basis of concurrency
+control to the replicated (and non-serializable, multi-versioned)
+setting. Moreover, compared to this prior work, our practical focus
+here is oriented towards invariants found in SQL and in modern
+applications.
+
+In contrast with many of the conditions above (esp. commutativity and
+monotonicity), we explicitly require more information from the
+application in the form of invariants (Kung and
+Papadimitriou~\cite{kung1979optimality} suggest this is information is
+\textit{required} for general-purpose non-serializable yet safe
+execution.)  In this work, we provide a necessary and sufficient
+condition for safe, coordination-free execution over replicated and
+multi-version data. When invariants are unavailable, many of these
+more conservative approaches may still be applicable. Our use of
+analysis-as-design-tool is inspired by this literature---in
+particular,~\cite{kohler-commutativity}.
+
+
+\minihead{Coordination costs} In this work, we determine when
+transactions can run entirely concurrently and without
+coordination. In contrast, a large number of alternative models
+(e.g.,~\cite{garciamolina-semantics,korth-serializability,isolation-semantics,local-verification,kemme-si-ic,aiken-confluence,laws-order})
+assume serializable or linearizable (and therefore coordinated)
+updates to shared state. These assumptions are standard (but not
+universal~\cite{ec-txns}) in the concurrent programming
+literature~\cite{schneider-concurrent,laws-order}. (Additionally,
+unlike much of this literature, we only consider a single set of
+invariants per database rather than per-operation invariants.) For
+example, transaction chopping~\cite{chopping} and later
+application-aware
+extensions~\cite{decomp-semantics,agarwal-consistency} decompose
+transactions into a set of smaller transactions, providing increased
+concurrency, but in turn require that individual transactions execute
+in a serializable (or strict serializable) manner.  This reliance on
+coordinated updates is at odds with our goal of coordination-free
+execution. However, these alternative techniques are useful in
+reducing the duration and distribution of coordination once it is
+established that coordination is required.
+
+\minihead{Term rewriting} In term rewriting systems, \iconfluence
+guarantees that arbitrary rule application will not violate a given
+invariant~\cite{obs-confluence}, generalizing Church-Rosser
+confluence~\cite{termrewriting}. We adapt this concept and effectively
+treat transactions as rewrite rules, database states as constraint
+states, and the database merge operator as a special \textit{join}
+operator (in the term-rewriting sense) defined for all
+states. Rewriting system concepts---including
+confluence~\cite{aiken-confluence}---have previously been integrated
+into active database systems~\cite{activedb-book} (e.g., in triggers,
+rule processing), but we are not familiar with a concept analogous to
+\iconfluence in the existing database literature.
+
+\minihead{Coordination-free algorithms and semantics} Our work is
+influenced by the distributed systems literature, where
+coordination-free execution across replicas of a given data item has
+been captured as ``availability''~\cite{gilbert-cap,queue}. A large
+class of systems provides availability via ``optimistic replication''
+(i.e., perform operations locally, then
+replicate)~\cite{optimistic}. We---like others~\cite{ec-txns}---adopt
+the use of the merge operator to reconcile divergent database
+states~\cite{bayou} from this literature. Both traditional database
+systems~\cite{adya} and more recent
+proposals~\cite{redblue-new, redblue} allow the simultaneous use of
+``weak'' and ``strong'' isolation; we seek to understand \textit{when}
+strong mechanisms are needed rather than an optimal implementation of
+either. Unlike ``tentative update'' models~\cite{sagas}, we do not
+require programmers to specify compensatory actions (beyond merge,
+which we expect to typically be generic and/or system-supplied) and do
+not reverse transaction commit decisions. Compensatory actions could
+be captured under \iconfluence as a specialized merge procedure.
+
+The CAP Theorem~\cite{gilbert-cap,pacelc} recently popularized the
+tension between strong semantics and coordination and pertains to a
+specific model (linearizability). In a recent retrospective, Brewer
+discusses the role of CAP in reasoning about and ``repairing'' more
+general invariants, such as those we study
+here~\cite{brewer-cap}. The relationship between serializability and
+coordination requirements has also been well documented in the
+database literature~\cite{davidson-survey}. Our research here
+addresses when particular database-backed applications require
+coordination, providing a new property, \iconfluence, for doing so.
+
+\minihead{Summary} The \iconfluence property is a necessary and
+sufficient condition for safe, coordination-free execution. Sufficient
+conditions such as commutativity and monotonicity are useful in
+reducing coordination overheads but are not always necessary. Here, we
+explore the fundamental limits of coordination-free execution. To do
+so, we explicitly consider a model without synchronous
+communication. This is key to scalability: if, by default, operations
+must contact a centralized validation service, perform atomic updates
+to shared state, or otherwise communicate, then scalability will be
+compromised. Finally, we only consider a single set of invariants for
+the entire application, reducing programmer overhead without affecting
+our \iconfluence results.
+
+
+
+\subsubsection{Isolation and RAMP Transactions}
+
+Replicated databases offer a broad spectrum of isolation guarantees at
+varying costs to performance and availability~\cite{bernstein-book}:
+
+\minihead{Serializability} At the strong end of the isolation spectrum
+is serializability, which provides transactions with the equivalent of
+a serial execution (and therefore also provides RA). A range of
+techniques can enforce serializability in distributed
+databases~\cite{bernstein-book,divy-writeonly}, multi-version
+concurrency control (e.g.~\cite{mv-mobile}), locking
+(e.g.~\cite{versions-update}), and optimistic concurrency
+control~\cite{f1}. These useful semantics come with costs in the form
+of decreased concurrency (e.g., contention and/or failed optimistic
+operations) and limited availability during partial
+failure~\cite{hat-vldb,davidson-survey}. Many
+designs~\cite{hstore,gstore} exploit cheap serializability within a
+single partition but face scalability challenges for distributed
+operations. Recent industrial efforts like F1~\cite{f1} and
+Spanner~\cite{spanner} have improved performance via aggressive
+hardware advances but, their reported throughput is still limited to
+20 and 250 writes per item per second. Multi-partition,
+multi-datacenter, and, generally, distributed serializable
+transactions are expensive and, especially under adverse conditions,
+are likely to remain
+expensive~\cite{schism,jones-dtxn,pavlo-partition}.
+
+\minihead{Weak isolation} The remainder of the isolation spectrum is
+more varied. Most real-world databases offer (and often default to)
+non-serializable isolation models~\cite{mohan-note,hat-vldb}. These
+``weak isolation'' levels allow greater concurrency and fewer
+system-induced aborts compared to serializable execution but provide
+weaker semantic guarantees. For example, the popular choice of
+Snapshot Isolation prevents Lost Update anomalies but not Write Skew
+anomalies~\cite{adya}; by preventing Lost Update,
+concurrency control mechanisms providing Snapshot Isolation require coordination~\cite{hat-vldb}. In recent years, many
+``NoSQL'' designs have avoided cross-partition transactions entirely,
+effectively providing Read Uncommitted isolation in many industrial
+databases such PNUTS~\cite{pnuts}, Dynamo~\cite{dynamo},
+TAO~\cite{tao}, Espresso~\cite{espresso}, Rainbird~\cite{rainbird},
+and BigTable~\cite{bigtable}. These systems avoid penalties associated
+with stronger isolation but in turn sacrifice transactional guarantees
+(and therefore do not offer RA).
+
+%Swift~\cite{swift}, 
+
+\minihead{RAMP and related mechanisms} There are several algorithms that are
+closely related to our choice of RA and RAMP algorithm design.
+
+COPS-GT's two-round read-only transaction protocol~\cite{cops} is
+similar to \rapl reads---client read transactions identify causally
+inconsistent versions by timestamp and fetch them from servers. While
+COPS-GT provides causal consistency (requiring additional metadata),
+it does not support RA isolation for multi-item writes.
+
+Eiger provides its write-only transactions~\cite{eiger} by electing a
+coordinator server for each write. As discussed in
+Section~\ref{sec:ramp-evaluation} (\mstr), the number of ``commit checks''
+performed during its read-only transactions is proportional to the
+number of concurrent writes. Using a coordinator violates partition
+independence but in turn provides causal consistency. This coordinator
+election is analogous to G-Store's dynamic key grouping~\cite{gstore}
+but with weaker isolation guarantees; each coordinator effectively
+contains a partitioned completed transaction list
+from~\cite{readonly}. Instead of relying on indirection, RAMP
+transaction clients autonomously assemble reads and only require
+constant factor (or, for \rapl, linear in transaction size) metadata
+size compared to Eiger's \textit{PL-2L} (worst-case linear in database
+size).
+
+We are not aware of another concurrency control mechanism for
+partitioned databases that ensures coordination-free execution,
+partition independence, and at least RA isolation.
+
+\subsubsection{Constraints}
+
+There is a large body of related work related to our investigation of
+specific database and ORM constraints that we consider in three
+categories: object relational mapping systems, the quantification of
+isolation behavior, and empirical open source software analysis.
+
+\minihead{ORMs} Database systems and application programming
+frameworks have a long
+history~\cite{objectstore,shore,bernstein-orm}. The ``impedance
+mismatch'' between object-oriented programming and the relational
+model is a perennial problem in data management systems. Ruby on Rails
+is no exception, and the concurrency control issues we study here are
+endemic to this mismatch---namely, the disuse of common concurrency
+control mechanisms like database-backed constraints. Bridging this gap
+remains an active area of research~\cite{db-to-model}.
+
+The latest wave of web programming frameworks has inspired diverse
+research spanning databases, verification, and security. StatusQuo
+uses program analysis and synthesis to transform imperative ORM code
+into SQL, leveraging the efficiency of database-backed web
+applications written in the Spring framework~\cite{statusquo}. Rails
+has been the subject of study in the verification of cross-site
+scripting attacks~\cite{rails-xss}, errors in data
+modeling of associations~\cite{rails-bounded}, and arbitrary,
+user-specified (non-validation) invariants~\cite{invariant-web}.
+Rails-style ORM validations have been used to improve systems security
+via client-side execution~\cite{waves,caveat}. Our focus here is on
+the concurrency control requirements and usages of applications
+written in Rails.
+
+\minihead{Quantifying anomalies} A range of research similarly
+quantifies the effect of non-serializable isolation in a variety of
+ways.
+
+Perhaps closest to our examination of ORM integrity violations is a
+study by Fekete et al., which quantitatively analyzed data
+inconsistencies arising from non-serializable
+schedules~\cite{fekete-quantifying}. This study used a hand-crafted
+benchmark for analysis but is nevertheless one of the only studies of
+actual application inconsistencies. Here, we focus on open source
+applications from the Rails community.
+
+A larger body of work examines isolation anomalies at the read-write
+interface (that is, measures deviations from properties such as
+serializability or linearizability but \textit{not} the end effect of
+these deviations on actual application behavior). Wada et
+al. evaluated the staleness of Amazon's SimpleDB using end-user
+request tracing~\cite{wada-data}, while Bermbach and Tai evaluated
+Amazon S3~\cite{bermbach-eventual}, each quantifying various forms of
+non-serializable behavior. Golab et al. provide algorithms for
+verifying the linearizability of and sequential consistency arbitrary
+data stores~\cite{golab-analyzing} and Zellag and Kemme provide
+algorithms for verifying their
+serializability~\cite{zellag-consistent} and other cycle-based
+isolation anomalies~\cite{zellag-real}. As we have discussed,
+Probabilistically Bounded Staleness provides time- and version-based
+staleness predictions for eventually consistent data
+stores~\cite{pbs}. Our focus here is on anomalies as observed by
+application logic rather than read-write anomalies observed under weak
+isolation.
+
+\minihead{Empirical software analysis} Empirical software analysis of
+open source software is a topic of active interest in the software
+engineering research community~\cite{foss-icse}. In the parlance of
+that community, in this work, we perform a mixed-methods analysis,
+combining quantitative survey techniques with a confirmatory case
+study of Rails's susceptibility to validation
+errors~\cite{empiricalmethods}. In our survey, we attempt to minimize
+sampling bias towards validation-heavy projects by focusing our
+attention on popular projects, as measured by GitHub stars. Our use of
+quantitative data followed by supporting qualitative data from
+documentation and issue tracking---as well as the chronology of
+methodologies we employed to attain the results presented here---can
+be considered an instance of the sequential exploration
+strategy~\cite{creswell2013research}. We specifically use these techniques in
+service of better understanding use of database
+concurrency control.

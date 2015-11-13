@@ -1,0 +1,140 @@
+
+\chapter{Coordination Avoidance and RAMP Transactions}
+\label{c.ramp}
+
+In the previous chapter, we identified several existing isolation and
+distributed consistency guarantees as coordination-free. Our goal was
+proof-of-concept algorithms and systems support for these levels. In
+this section, we go further. First, we develop a \textit{new} isolation
+model that is tailored to a set of existing use cases for which there
+is no existing, sufficiently powerful \iconfluent semantics. Second,
+we develop high performance algorithms for enforcing those
+semantics. 
+
+Specifically, in this chapter, we address a largely underserved class
+of applications requiring multi-partition, atomically
+visible\footnote{\label{atomicnote}Our use of ``atomic''
+  (specifically, Read Atomic isolation) concerns all-or-nothing
+  \textit{visibility} of updates (i.e., the ACID isolation effects of
+  ACID atomicity; Section~\ref{sec:ra-def}). This differs from uses of
+  ``atomicity'' to denote serializability~\cite{bernstein-book} or
+  linearizability~\cite{dcomp-book}.}  \textit{transactional} access:
+cases where all or none of each transaction's effects should be
+visible. In fact, this access corresponds to two semantics from the
+previous chapter: MAV combined with Cut Isolation. The status quo for
+these multi-partition atomic transactions provides an uncomfortable
+choice between algorithms that are fast but deliver inconsistent
+results and algorithms that deliver consistent results but are often
+slow and unavailable under failure. Many of the largest modern,
+real-world systems opt for protocols that guarantee fast and scalable
+operation but provide few---if any---transactional semantics for
+operations on arbitrary sets of data
+items~\cite{tao,bigtable,pnuts,dynamo,2pc-scalability,espresso,rainbird}. This
+may lead to anomalous behavior for several use cases requiring atomic
+visibility, including secondary indexing, foreign key constraint
+enforcement, and materialized view maintenance
+(Section~\ref{sec:motivation}). In contrast, many traditional
+transactional mechanisms correctly ensure atomicity of
+updates~\cite{bernstein-book,spanner,calvin}. However, these
+algorithms---such as two-phase locking and variants of optimistic
+concurrency control---are often coordination-intensive, slow, and,
+under failure, unavailable in a distributed
+environment~\cite{hat-vldb,schism,jones-dtxn,pavlo-partition}. This
+specific dichotomy between scalability and atomic visibility has been
+described as ``a fact of life in the big cruel world of huge
+systems''~\cite{helland-trans}.
+
+Our contribution in this chapter is to demonstrate that atomically
+visible transactions on partitioned databases are \textit{not} at odds
+with scalability. We provide high-performance implementations of a
+new, non-serializable isolation model called Read Atomic (RA)
+isolation, corresponding to MAV with Cut Isolation. RA ensures that
+all or none of each transaction's updates are visible to others and
+that each transaction reads from an atomic snapshot of database state
+(Section~\ref{sec:ra-def})---this is useful in the applications we
+target. We subsequently develop three new, scalable algorithms for
+achieving RA isolation that we collectively title Read Atomic
+Multi-Partition (RAMP) transactions
+(Section~\ref{sec:algorithm}). RAMP transactions guarantee scalability
+and outperform existing atomic algorithms because they satisfy two key
+scalability constraints. First, RAMP transactions guarantee
+coordination-free execution: per Chapter~\ref{c.background}, one
+client's transactions cannot cause another client's transactions to
+stall or fail. Second, RAMP transactions guarantee \textit{partition
+  independence}: clients only contact partitions that their
+transactions directly reference (i.e., there is no central master,
+coordinator, or scheduler). Together, these properties ensure
+guaranteed completion, limited coordination across partitions, and
+horizontal scalability for multi-partition access.
+
+RAMP transactions are scalable because they appropriately control the
+visibility of updates without inhibiting concurrency. Rather than
+force concurrent reads and writes to stall, RAMP transactions allow
+reads to ``race'' writes: RAMP transactions can autonomously detect
+the presence of non-atomic (partial) reads and, if necessary, repair
+them via a second round of communication with servers. To accomplish
+this, RAMP writers attach metadata to each write and use limited
+multi-versioning to prevent readers from stalling. The three
+algorithms we present offer a trade-off between the size of this
+metadata and performance. \texttt{RAMP-Small} transactions require
+constant space (a timestamp per write) and two round trip time delays
+(RTTs) for reads and writes. \texttt{RAMP-Fast} transactions require
+metadata size that is linear in the number of writes in the
+transaction but only require one RTT for reads in the common case and
+two in the worst case. \texttt{RAMP-Hybrid} transactions employ Bloom
+filters~\cite{bloomfilter} to provide an intermediate
+solution. Traditional techniques like locking couple atomic visibility
+and mutual exclusion; RAMP transactions provide the benefits of the
+former without incurring the scalability, availability, or latency
+penalties of the latter.
+
+In addition to providing a theoretical analysis and proofs of
+correctness, we demonstrate that RAMP transactions deliver in
+practice. Our RAMP implementation achieves linear scalability to over
+$7$ million operations per second on a 100 server cluster (at overhead
+below $5\%$ for a workload of $95\%$ reads). Moreover, across a range
+of workload configurations, RAMP transactions incur limited overhead
+compared to other techniques and achieve higher performance than
+existing approaches to atomic visibility
+(Section~\ref{sec:ramp-evaluation}).
+
+While the literature contains an abundance of isolation models, we
+believe that the large number of modern applications requiring RA
+isolation and the excellent scalability of RAMP transactions justify
+the addition of yet another model. RA isolation is too weak for some
+applications, but, for the many that it can serve, RAMP transactions
+offer substantial benefits.
+
+The remainder of this article proceeds as follows:
+Section~\ref{sec:ramp-motivation} presents an overview of RAMP
+transactions and describes key use cases based on industry
+reports. Section~\ref{sec:ra-def} defines Read Atomic isolation,
+presents both a detailed comparison with existing isolation guarantees
+and a syntactic condition, the Read-Subset-Writes property, that
+guarantees equivalence to serializable isolation, and defines two key
+scalability criteria for RAMP algorithms to
+provide. Section~\ref{sec:ramp-algorithm} presents and analyzes three
+RAMP algorithms, which we experimentally evaluate in
+Section~\ref{sec:ramp-evaluation}. Section~\ref{sec:ramp-application}
+presents modifications of the RAMP protocols to better support
+multi-datacenter deployments and to enforce transitive
+dependencies. Section~\ref{sec:conclusion} concludes with a discussion
+of extensions to the protocols presented here.
+
+
+\input{ramp/motivation}
+
+\input{ramp/model}
+
+\input{ramp/algorithm}
+
+\input{ramp/evaluation}
+
+\input{ramp/application}
+
+\input{ramp/relatedwork}
+
+\input{ramp/appendix}
+
+\input{ramp/conclusion}
+

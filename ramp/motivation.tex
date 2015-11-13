@@ -1,0 +1,193 @@
+
+\section{Overview}
+\label{sec:ramp-motivation}
+
+In this chapter, we consider the problem of making transactional
+updates atomically visible to readers---a requirement that, as we
+outline in this section, is found in several prominent use cases
+today. The basic property we provide is fairly simple: either all or
+none of each transaction's updates should be visible to other
+transactions. For example, if $x$ and $y$ are initially $null$ and a
+transaction $T_1$ writes $x = 1$ and $y = 1$, then another transaction
+$T_2$ should not read $x=1$ and $y=null$. Instead, $T_2$ should either
+read $x=1$ and $y=1$ or, possibly, $x=null$ and $y=null$. Informally,
+each transaction reads from an unchanging snapshot of database state
+that is aligned along transactional boundaries. We call this property
+\textit{atomic visibility} and formalize it via the Read Atomic
+isolation guarantee in Section~\ref{sec:ra-def}.
+
+The classic strategy for providing atomic visibility is to ensure
+mutual exclusion between readers and writers. For example, if a
+transaction like $T_1$ above wants to update data items $x$ and $y$,
+it can acquire exclusive locks for each of $x$ and $y$, update both
+items, then release the locks. No other transactions will observe
+partial updates to $x$ and $y$, ensuring atomic visibility. However,
+this solution has a drawback: while one transaction holds exclusive
+locks on $x$ and $y$, no other transactions can access $x$ and $y$ for
+either reads or writes. By using mutual exclusion to enforce the
+atomic visibility of updates, we have also limited concurrency. In our
+example, if $x$ and $y$ are located on different servers, concurrent
+readers and writers will be unable to perform useful work during
+communication delays. These communication delays form an upper bound
+on throughput: effectively, $\frac{1}{\textrm{message delay}}$
+operations per second.
+
+To avoid this upper bound, we separate the problem of providing atomic
+visibility from the mechanism of mutual exclusion. By achieving the
+former but avoiding the latter, the algorithms we develop in this
+paper are not subject to the scalability penalties of many prior
+approaches. To ensure that all servers successfully execute a
+transaction (or that none do), our algorithms employ an atomic
+commitment protocol (ACP). When coupled with a coordinating concurrency
+control mechanism such as locking, ACPs are harmful to scalability and
+availability: arbitrary failures can (provably) cause any ACP
+implementation to stall~\cite{bernstein-book}. We instead use ACPs
+with non-blocking concurrency control mechanisms; this means that
+individual transactions can stall due to failures or communication
+delays without forcing other transactions to stall. In a departure
+from traditional concurrency control, we allow multiple ACP rounds to
+proceed in parallel over the same data.
+
+The end result---what we call RAMP transactions---provide excellent
+scalability and performance under contention (e.g., in the event of
+write hotspots) and are robust to partial failure. RAMP transactions'
+non-blocking behavior means that they cannot provide certain
+guarantees like preventing concurrent updates. However, the
+applications we highlight---for which Read Atomic isolation is
+sufficient to maintain correctness---will benefit from our
+algorithms. The remainder of this section identifies several relevant
+use cases from industry that require atomic visibility for
+correctness.
+
+\section{Read Atomic Isolation in the Wild}
+\label{sec:usecases}
+
+As a simple example, consider a social networking application: if two
+users, Sam and Mary, become ``friends'' (a bi-directional
+relationship), other users should never see that Sam is a friend of
+Mary but Mary is not a friend of Sam: either both relationships should
+be visible, or neither should be. A transaction under Read Atomic
+isolation would correctly enforce this behavior. We can further
+classify three general use cases for Read Atomic isolation:
+
+\exampleref{1. Foreign key constraints} Many database schemas contain
+information about relationships between records in the form of foreign
+key constraints. For example, Facebook's TAO~\cite{tao}, LinkedIn's
+Espresso~\cite{espresso}, and Yahoo! PNUTS~\cite{pnuts} store
+information about business entities such as users, photos, and status
+updates as well as relationships between them (e.g., the friend
+relationships above). Their data models often represent bi-directional
+edges as two distinct uni-directional relationships. For example, in
+TAO, a user performing a ``like'' action on a Facebook page produces
+updates to both the \texttt{LIKES} and \texttt{LIKED\_BY}
+associations~\cite{tao}. PNUTS's authors describe an identical
+scenario~\cite{pnuts}. These applications require foreign key
+maintenance and often, due to their unidirectional relationships,
+multi-entity update and access. Violations of atomic visibility
+surface as broken bi-directional relationships (as with Sam and Mary
+above) and dangling or incorrect references. For example, clients
+should never observe that Frank is an \texttt{employee} of
+\texttt{department.id=5}, but no such \texttt{department} exists in
+the \texttt{department} table.
+
+Under RA isolation, when inserting new entities, applications can
+bundle relevant entities from each side of a foreign key constraint
+into a transaction. When deleting associations, users can avoid
+dangling pointers by creating a ``tombstone'' at the opposite end of
+the association (i.e., delete any entries with associations via a
+special record that signifies deletion)~\cite{tombstone}.
+
+\exampleref{2. Secondary indexing} Data is typically partitioned across
+servers according to a primary key (e.g., user ID). This allows fast
+location and retrieval of data via primary key lookups but makes
+access by secondary attributes challenging (e.g., indexing by birth date). There
+are two dominant strategies for distributed secondary indexing. First,
+the \textit{local secondary index} approach co-locates secondary
+indexes and primary data, so each server contains a secondary index
+that only references and indexes data stored on its
+server~\cite{megastore,espresso}. This allows easy, single-server
+updates but requires contacting every partition for secondary
+attribute lookups (write-one, read-all), compromising scalability for
+read-heavy workloads~\cite{tao,spanner,espresso}. Alternatively, the
+\textit{global secondary index} approach locates secondary indexes
+(which may be partitioned, but by a secondary attribute)
+separately from primary data~\cite{pnuts,megastore}. This alternative
+allows fast secondary lookups (read-one) but requires multi-partition
+update (at least write-two).
+
+Real-world services employ either local secondary indexing (e.g.,
+Espresso~\cite{espresso}, Cassandra, and Google Megastore's local
+indexes~\cite{megastore}) or non-atomic (incorrect) global secondary
+indexing (e.g., Espresso and Megastore's global indexes, Yahoo!
+PNUTS's proposed secondary indexes~\cite{pnuts}). The former uses
+coordination and limits the workloads that are scalable but is
+correct. The latter does not use coordination and is scalable for a
+range of workloads but is incorrect. For example, in a database
+partitioned by \texttt{id} with an incorrectly-maintained global
+secondary index on \texttt{salary}, the query \texttt{`SELECT id,
+  salary WHERE salary > 60,000'} might return records with
+\texttt{salary} less than \$60,000 and omit some records with
+\texttt{salary} greater than \$60,000.
+
+Under RA isolation, the secondary index entry for a given
+attribute can be updated atomically with base data. For example, suppose a
+secondary index is stored as a mapping from secondary attribute values to
+sets of item-versions matching the secondary attribute (e.g., the
+secondary index entry for users with blue hair would contain a list of
+user IDs and last-modified timestamps corresponding to all of the
+users with attribute \texttt{hair-color=blue}). Insertions of new
+primary data require additions to the corresponding index entry,
+deletions require removals, and updates require a ``tombstone''
+deletion from one entry and an insertion into another.
+
+\exampleref{3. Materialized view maintenance} Many applications
+precompute (i.e., materialize) queries over data, as in Twitter's
+Rainbird service~\cite{rainbird}, Google's
+Percolator~\cite{percolator}, and LinkedIn's Espresso
+systems~\cite{espresso}. As a simple example, Espresso stores a
+mailbox of messages for each user along with statistics about the
+mailbox messages: for Espresso's read-mostly workload, it is more
+efficient to maintain (i.e., pre-materialize) a count of unread
+messages rather than scan all messages every time a user accesses her
+mailbox~\cite{espresso}. In this case, any unread message indicators
+should remain in sync with the messages in the mailbox. However,
+atomicity violations will allow materialized views to diverge from the
+base data (e.g., Susan's mailbox displays a notification that she has
+\texttt{unread} messages but all $60$ messages in her
+\texttt{inbox} are marked as \texttt{read}).
+
+With RAMP transactions, base data and views can be updated
+atomically. The maintenance of a view depends on its
+specification~\cite{materialized-survey,hyun-integrity,mv1}, but RAMP
+transactions provide appropriate concurrency control primitives for
+ensuring that changes are delivered to the materialized view
+partition. For select-project views, a simple solution is to treat the
+view as a separate table and perform maintenance as needed: new rows
+can be inserted/deleted according to the specification, and, if
+necessary, the view can be (re-)computed on demand (i.e., lazy view
+maintenance~\cite{lazy-view}). For more complex views, such as
+counters, users can execute RAMP transactions over specialized data
+structures such as the CRDT G-Counter~\cite{crdt}.
+
+\minihead{Status Quo} Despite application requirements for
+Read Atomic isolation, few large-scale production systems provide
+it. For example, the authors of Tao, Espresso, and PNUTS describe
+several classes of atomicity anomalies exposed by their systems,
+ranging from dangling pointers to the exposure of intermediate states
+and incorrect secondary index lookups, often highlighting these cases
+as areas for future research and
+design~\cite{tao,espresso,pnuts}. These systems are not exceptions:
+data stores like Bigtable~\cite{bigtable}, Dynamo~\cite{dynamo}, and
+many popular ``NoSQL''~\cite{mohan-note} and even some
+``NewSQL''~\cite{hat-vldb} stores do not provide transactional
+guarantees for multi-item operations. Unless users are willing to
+sacrifice scalability by opting for serializable
+semantics~\cite{spanner}, they are often left without transactional
+semantics.
+
+The designers of these Internet-scale, real-world systems have made a
+conscious decision to provide scalability at the expense of
+multi-partition transactional semantics. Our goal with RAMP
+transactions is to preserve this scalability but deliver atomically
+visible behavior that is sufficient to maintain key consistency
+criteria for the use cases we have described.

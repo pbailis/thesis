@@ -1,0 +1,430 @@
+
+\chapter{Conclusions}
+\label{c.conclusion}
+
+In this chapter, we conclude this dissertation by reflecting on
+general design patterns for systems builders, limitations of our
+approach, and opportunities for future work in coordination
+avoidance. We conclude with a final discussion on the results
+contained herein.
+
+\section{Design Patterns for Coordination Avoidance}
+
+During the development of the algorithms and systems described in this
+dissertation, we encountered a set of recurring patterns that assisted
+in our design process, both in applying \iconfluence and also deriving
+coordination-free implementations. Here, we outline four in the hope
+that they act as helpful rules of thumb and guidelines for future
+system architects:
+
+\minihead{Separate progress from visibility} In a coordination-free
+system, different operations must be able to proceed independently. An
+inherent side-effect of this behavior is that the progress of one
+operation may not be visible to other concurrent operations. Thus, a
+coordination-free system guarantees progress of operations without
+guaranteeing visibility of their side effects. The side effects can
+eventually become visible, but coordination-free applications cannot
+depend on observing them. Put another way, a coordination-free system
+does not arbitrate whether independent operations should proceed or
+not---it simply arbitrates when their effects become visible.
+
+\minihead{Ensure composability of operations} The corollary to the
+above observation is that a coordination-free application must ensure
+that its operations are composable. This is the essence of
+the~\iconfluence property, but it bears repeating: in a
+coordination-free execution, operations will run concurrently, so
+whether or not their side effects can be reconciled is key to
+determining whether the execution is safe. We have captured this
+reconciliation process via an explicit merge operator. In our
+analyses, merge is simple: typically just set union or a natural
+extension of abstract data types. However, more complicated merge
+operations are possible (e.g., to capture behavior such as
+compensating actions). The guiding question here is: if
+transactions produce multiple effects independently, do the effects
+make sense when combined?
+
+\minihead{Control visibility via multi-versioning} In our
+coordination-free implementations and system designs, we have relied
+heavily on the use of multi-versioning. In some cases, this appears a
+necessity: to avoid revealing intermediate data while allowing updates
+to existing data, multiple versions are required (e.g., as in
+RAMP). The subtlety in each implementation is due to two related
+factors. First, when are new writes revealed? For example, Read Atomic
+isolation and causal consistency each provide a different answer that
+affects the algorithm design. Second, how is dependency information
+encoded in the database? Again, as an example, RAMP and causally
+consistent algorithms take various different approaches. For RAMP, we
+have provided three options that offer a trade-off between efficiency
+of reads and compactness of metadata. For causal consistency, we have
+another set of options, from vector clocks to dependency trees
+(Section~\ref{sec:causal}). Nevertheless, the core concepts are the
+same, and they are repeated in many of our algorithmic and systems
+contributions, from Read Committed isolation to our \iconfluent
+implementation of TPC-C transactions.
+
+\minihead{Limit the scope of coordination (when required)} Our primary
+focus in this thesis is determining when coordination-free
+implementations of common semantics are achievable. As we have seen,
+sometimes coordination is required. As a simple design axiom that is
+intuitive but nevertheless useful, when coordination is unavoidable,
+it is desirable to limit its scope, both in time and space. That is,
+first, it is best to coordinate over as few operations as possible
+(e.g., in TPC-C, instead of coordinating for all operations, we only
+coordinate for those that require it, allowing the rest to execute
+without coordination). Second, coordination within a single node is
+much cheaper than coordinating across nodes, so minimizing the
+distribution of coordinating processes is also beneficial. We expand
+on this final theme in the remainder of this chapter.
+
+\section{Limitations}
+\label{sec:c-limitations}
+
+While we believe that the techniques in this thesis are useful, they
+have several limitations; in this section, we outline four of them. We
+discuss avenues for addressing them in Section~\ref{sec:c-futurework}.
+
+\minihead{Advance knowledge} In our \iconfluence analysis, we have
+effectively assumed that all program text and constraints are known in
+advance. Of course, by restricting program operations and constraints
+to only those constructs that we have shown to be \iconfluent, we can
+construct safe ``languages'' from which one can dynamically specify
+programs. However, without further consideration of the admissible
+logics and complexity classes contained within the space of
+\iconfluent semantics, it is difficult to precisely characterize the
+utility of this alternative.
+
+\minihead{Complete specifications} A related concern is that
+\iconfluence requires a complete specification of correctness for a
+given task or program. If a particular invariant does not appear in a
+specification, \iconfluence assumes that the invariant does not matter
+for correctness. This leaves a considerable burden on the
+programmer. We have attempted to mitigate this burden by considering
+existing, widely-used semantics in this dissertation.
+
+\minihead{Manual process} Our application of \iconfluence analysis and
+development of coordination-free algorithms is primarily manual,
+relying on proofs, rudimentary static analysis, and a set of design
+principles as outlined above. We have not found this process to be
+exceedingly onerous in practice, but, nevertheless, for others to
+rigorously apply these ideas may require considerable familiarity with
+the details in this work.
+
+\minihead{Replicated and partitioned model} 
+
+\minihead{Mixed execution} Our primary goal has been to determine
+whether coordination-free execution is possible and, when it is, how
+to realize coordination-free implementations of this task. This leaves
+a question of how to combine coordination-free and coordinated
+semantics within a given application. A trivial answer is to always
+coordinate in the event that \iconfluence does not hold. However, in
+our experience, this empirically wastes considerable opportunity for
+more efficient execution. Rather, fully realizing coordination
+avoidance requires embracing mixed-mode execution within system
+runtimes.
+
+\section{Future Work}
+\label{sec:c-futurework}
+
+We see several promising directions for future work on coordination
+avoidance, which we discuss here. A subset of the directions here
+address the limitations of our existing work that we have discussed in
+Section~\ref{sec:c-limitations}, while others represent new questions
+arising from this work.
+
+\subsection{Automating Coordination Avoidance}
+
+In this dissertation, we have developed a foundation for determining
+when coordination-free execution is possible; we have applied the
+\iconfluence principle to a range of semantics found in applications
+today. However, this process is primarily manual and requires human
+intervention at several stages of the process, from proving or
+disproving the \iconfluence of a set of semantics to deriving a
+coordination-free algorithm for implementing an \iconfluent set of
+semantics. This raises a natural question: which aspects of this
+process can be automated? We see several avenues for progress:
+
+\minihead{Automatically proving \iconfluence} Given a set of
+operations, an invariant, and a merge function, it would be desirable
+to automatically prove whether \iconfluence holds for the
+combination. For arbitrary logic, this is undecidable via trivial
+application of Rice's Theorem. However, given
+the brevity of most of our proofs in this work, we believe that, for
+practical programs, this is feasible. The key to achieving this
+possiblity is to determine a sufficiently restricted set (or language)
+of operations and constraints that can be efficiently checked.
+
+\minihead{Synthesizing coordination-free algorithms} As we have
+discussed, many of our algorithms fit a common pattern---to what
+extent can we automatically synthesize coordination-free algorithms
+from their specification (similar to synthesis of concurrent data
+structures~\cite{aiken-synthesis})? Could we build a synthesizer that
+could automatically output the RAMP protocols described in this
+dissertation, using only the RA isolation specification? Could we do
+the same for causal consistency? We believe the answer is yes to all:
+the base implementation of each is relatively similar (a
+multi-versioned database), and each implementation is effectively
+parametrized by a delivery policy and metadata. Thus, a synthesizer
+could efficiently search the space of delivery policies and metadata
+to find an appropriate match for a given set of semantics. For the
+semantics we have described here, the search space is relatively
+constrained.
+
+\minihead{Mining constraints} The task of specifying a
+complete declarative set of invariants for arbitrary applications is a
+considerable burden on developers. Is it possible to automate this
+process? One promising possibility is to use recent program analysis
+techniques such as the Homeostasis Protocol~\cite{homeostasis} to
+first generate a conservative set of invariants from application code
+(e.g., using serializability as a correctness
+specification). Subsequently, given this conservative specification,
+we can engage the programmer to increase its precision. Specifically,
+given a cost model for each invariant (e.g., determined by applying
+\iconfluence analysis and examining the distribution of data and which
+invariants require single-node versus multi-partition coordination to
+enforce), we can present the user with a list of ``expensive''
+invariant-operation pairs ranked by cost. For each operation, we can
+present a set of cheaper alternatives to choose from that relax the
+specification. For example, we might explain that, while assigning IDs
+sequentially is expensive, using a nonce unique ID generator is
+considerably less expensive. Thus, even if program text indicates the
+need for coordination, involving the programmer in the program
+rewriting phase may allow more flexibility. By using cost models to
+guide the optimization, we can address the most expensive components
+of the application first.
+
+\minihead{Bespoke coordination plans} Given a set of operations and
+constraints, how should a system actually proceed to enforce them? Our
+current approach is relatively simple: each constraint and operation
+pair has an associated implementation (e.g., foreign key insertions
+use RAMP transactions). However, for more complex constraints and
+operations, this approach can quickly become onerous and even
+untenable. We see an opportunity for both more principled study of
+distributed invariant enforcement (in the spirit of active database
+systems, especially in a multi-partition, geo-replicated environment)
+as well as, in effect, ``query planning'' for coordination. If
+coordination is required, what mechanisms should be chosen? On what
+partitions should they be deployed? As an example, lock-based
+coordination is typically partitioned by item (e.g., the lock for item
+$x$ belongs on the server for $x$). However, if we consider
+higher-order data types like publish-subscribe queues, we have a
+number of options, including coordinating at the publisher(s),
+coordinating at the subscriber(s), or neither. The Blazes
+system~\cite{blazes} chooses between totally ordered, partially
+ordered, and unordered delivery in a stream processing engine in order
+to guarantee output determinism; similar choices exist for invariant
+enforcement. Given that there are rarely unilateral ``best''
+strategies in concurrency control, runtime adaptivity may confer
+serious advantages.
+
+\minihead{Maintaining constraints and operations} Applications change
+over time: new constraints and operations will be added to
+applications. How should we incrementally maintain coordination plans,
+and how can we incrementally check (and maintain) \iconfluence? New
+constraints must be compatible with existing constraints, otherwise an
+unsatisfiable set of constraints will result in operation
+unavailability and database ``inconsistency.'' One simple strategy is
+to treat code modifications as a coordinated operation, much as schema
+changes are rolled out across clusters today.
+
+\subsection{Comprehending Weak Isolation}
+
+As discussed in Section~\ref{sec:modernacid}, few relational database
+engines today actually provide serializability by default or even as
+an option at all. This was a somewhat surprising result to us, as much
+of the power and beauty of the transaction concept is predicated on
+serializable isolation. As we have in
+Section~\ref{sec:feral-evaluation}, these weak isolation guarantees
+can corrupt application integrity if not correctly applied. This
+raises a set troubling questions for the database
+community. Primarily, how is it that weak isolation is so prevalent
+and yet transaction processing is successful in practice?
+
+One possibility for this behavior is that, in practice, there is
+little concurrency. For many high value applications such as point of
+sale systems, volumes on the order of hundreds of transaction per
+second are impressive yet are easily handled by a single server
+runtime. Without high concurrency, there are few conflicts. However,
+if this is the case, increasing query and data volumes may lead to an
+increased incidence of consistency errors due to weak isolation.
+
+Another possibility is that programmers are simply compensating for
+weak application in the application. This is possible via use of
+language constructs like \texttt{SELECT FOR UPDATE}, which acquire
+exclusive access to a record, compensating actions, and a range of
+alternative concurrency control strategies. Determining whether this
+is the case will require additional investigation of programmer
+behavior.
+
+In either of these cases, we see a number of opportunities for improving
+programmer experiences, including:
+
+\minihead{Automated isolation analyses} In line with the automated
+\iconfluence analyses above, one could check a given application to
+determine its susceptibility to inconsistencies arising from weak
+isolation anomalies. This has been an active area of research for weak
+memory models in multi-processor systems, and we see an analogous
+opportunity here.
+
+\minihead{Debugging weak isolation} When inconsistencies in data
+occur, from where did they come? Leveraging provenance-style analyses
+to determine the origins of inconsistency may assist programmers in
+understanding why errors occurred and how to avoid them in the future.
+
+\minihead{Automated isolation repair} Given an analysis as above, can
+we synthesize the use of constructs like \texttt{SELECT FOR UPDATE} to
+correct for anomalies? Once an inconsistency occurs, can a system
+automatically generate a compensating action that will repair it
+without compromising correctness?
+
+\subsection{Emerging Application Patterns}
+
+Given the ascendancy of open source, there is
+unprecedented opportunity to empirically and quantitatively study how
+our systems are and are not serving the needs of application
+programmers. Lightweight program analysis has never been easier, and
+the corpus of readily-accessible code---especially in an academic
+context---has never been larger.
+
+The applications we study here are undoubtedly dwarfed by many other
+commercial and enterprise-grade codebases in terms of size, quality,
+and complexity. However, compared to alternatives such as TPC-C, which
+today is almost 23 years old and is still the preferred standard for
+transaction processing evaluation, open source corpuses are arguably better
+proxies for modern applications. Recent efforts like the OLTPBenchmark
+suite~\cite{oltpbench} are promising but are nevertheless (and perhaps
+necessarily) not a substitute for real applications. The opportunity
+to perform both quantitative surveys across a large set of
+applications as well as longitudinal studies over the history of each
+application repository (and the behavior of a given programmer over
+time and across repositories) is particularly compelling. While these
+studies are inherently imprecise (due to limitations of the corpuses),
+the resulting quantitative trends are invaluable.
+
+Thus, in this era of ``Big Data'' analytics, we see great promise in
+turning these analyses inwards, towards an empirical understanding of
+the usage of data management systems today, in service of better
+problem selection and a more quantitatively informed community
+dialogue. Our previous discussion in
+Section~\ref{sec:feral-discussion} hints at what is possible when we
+re-evaluate abstractions such as the transaction concept in light of
+developer trends.
+
+\subsection{Statistical Coordination Avoidance}
+
+In this work, we have largely concerned ourselves with the problem of
+deterministically maintaining safety guarantees. These guarantees are
+true guarantees in that they will hold in all scenarios: this is
+useful for application programmers as they do not have to reason about
+exceptional behavior under which safety guarantees do not
+hold. However, many emerging analytics tasks may not require such
+rigid guarantees. Instead, we might consider more relaxed safety
+guarantees as in PBS, wherein safety is guaranteed only in expectation
+or in a probabilistic sense. Numerical consistency guarantees and
+their enforcement have a long history in the
+literature~\cite{tact,frac,aqua,olston-thesis} but have seen limited
+adoption for want of a practical use case; we view these statistical
+analytics tasks as a new killer application.
+
+Adapting the ideas we have discussed here to this statistical context
+provides a number of opportunities. A modified \iconfluence analysis
+might account for numerical robustness by incorporating bounded drift
+between merge invocations or incorporating network delay in
+analysis. In turn, coordination avoiding algorithms and variants of
+classic techniques from as escrow transactions~\cite{escrow} and
+approximate replication~\cite{olston-thesis} for rebalancing could be
+used to increase the efficiency of statistical analysis tasks.
+
+As an example, in the Alternating Direction Method of Multipliers
+(ADMM)~\cite{boyd-admm}, a number of
+processes coordinate to perform a distributed convex optimization
+routine. A core component of ADMM is a mathematical ``consensus term''
+that prohibits individual processes from diverging from the global
+solution. We can treat this term as, in effect, a quadratic penalty
+that is analogous to the numerical inequalities enforced by the escrow
+transaction method. In ADMM, all processes typically communicate to
+update the consensus term. However, in the escrow transaction method,
+processes can communicate pair-wise to rebalance slack in the
+allocation of divergence to individual processes. Processes might use
+a heuristic to borrow slack from the least-loaded process, thus
+reducing overall communication. Could escrow's pair-wise rebalancing
+be employed in ADMM in order to reduce communication costs without
+affecting convergence?  We believe so.
+
+Our initial experiences in this space have been promising. First, the
+Velox~\cite{velox-overview} system provides scalable model predictions as a
+service by treating models as statistically robust materialized
+views. In contrast with traditional materialized views, Velox defers
+the maintenance of models as new training data arrives and instead
+prioritizes model maintenance according to robustness. Second, our
+experiences integrating asynchronous model training into distributed
+dataflow engines~\cite{admm} indicates that the degree of coordination
+required for efficient convergence of convex optimization tasks is
+closely linked to model skew. Both of these projects concretely
+highlight the potential of statistically-motivated coordination
+avoidance.
+
+In general, we see great promise in systematically exploiting
+numerical robustness of statistical analytics routines. If a procedure
+is robust to numerical inaccuracy, an execution framework can
+systematically introduce inaccuracy to improve execution efficiency:
+for example, by introducing asynchrony into processing, by batching
+messages, or by operating over stale data. This is not a new idea by
+itself, but we see a wealth of unexplored connections in the domain of
+data serving and transaction processing that, in our initial
+investigations, have borne considerable fruit.
+
+\section{Closing Thoughts}
+
+ACID transactions and associated strong isolation and consistency
+levels dominated the field of database concurrency control for
+decades, due in large part to their ease of use and ability to
+automatically guarantee application correctness criteria. However,
+these powerful abstractions come with a hefty cost: concurrent
+transactions must coordinate in order to prevent read/write conflicts
+that could compromise equivalence to a serial execution. At large
+scale and, increasingly, in geo-replicated system deployments, the
+coordination costs necessarily associated with these implementations
+produce significant overheads in the form of penalties to throughput,
+latency, and availability. Today, these overheads necessitate a
+re-evaluation of concurrency control best practices.
+
+In this dissertation, we developed a formal framework, called
+\iconfluence, in which application invariants are used as a basis for
+determining if and when coordination is strictly necessary to maintain
+correctness. With this framework, we demonstrated that, in fact,
+many---but not all---common database semantics and integrity
+constraints are actually achievable without coordination. By applying
+these results to a range of actual workloads, we demonstrated multiple
+opportunities to avoid coordination in many cases that traditional
+serializable mechanisms would otherwise coordinate. The
+order-of-magnitude performance improvements we demonstrated via novel
+coordination-avoiding concurrency control implementations provide
+compelling evidence that coordination avoidance is a promising
+approach to meaningfully scaling future data management
+systems.
+
+As a final note, today, the database and distributed computing
+communities are somewhat separate. While these communities have
+considerable shared interests in replicated data, their terminology
+and transfer of ideas are limited beyond the basics. This is
+unfortunate: the distributed computing literature has much to offer
+students of distributed databases. As we have highlighted here, the
+distributed computing community's emphasis on formal specification
+enables very useful analyses, without which we might spend years
+looking for algorithms that do not exist. Moreover, the distributed
+computing community's emphasis on modular abstractions, including
+atomic commitment, consensus objects, and broadcast primitives will be
+familiar to systems builders. Conversely, while the distributed
+computing readership of this thesis may be more limited, distributed
+databases also have much to offer scholars of distributed computing,
+including but not limited to new transaction models and safety
+properties. Perhaps most unfortunate is the reality that an increasing
+number of systems designers and practitioners today are exposed to the
+complexities of distribution, and there is little principled
+\textit{and} practical guidance as to when to employ each of these
+mechanisms. Accordingly, this thesis is an attempt to merge these
+worlds and use principled analyses of network behavior to improve the
+practical development of distributed database systems. By making
+judicious use of coordination, we can build systems that guarantee
+application safety while maximizing their scalability.
+
